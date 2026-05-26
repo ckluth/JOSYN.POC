@@ -49,3 +49,4 @@
 | 0004 | session-0004-switchover-discussion.md | "Never look back" rule established; safe switch moment confirmed; JOSYN story closed 🔒 |
 | 0005 | session-0005-transition-bridge-summary.md | Status-quo bridge document: all building blocks, dependencies, conventions, open items — reviewed and resolved in session-0006 |
 | 0006 | session-0006-bridge-resolution-summary.md | All 4 bridge questions resolved; copilot-instructions enriched; architecture-reference.md created ✅ |
+| 0007 | session-0007-readme-showcase-generation.md | All READMEs written/updated: root showcase + 7 individual READMEs; German throughout; Mermaid diagrams; factual corrections applied ✅ |

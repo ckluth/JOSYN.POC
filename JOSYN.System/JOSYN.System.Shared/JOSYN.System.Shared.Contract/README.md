@@ -17,14 +17,19 @@ wird, nicht *wie* (das ist Aufgabe von `JOSYN.Foundation.JIP`).
 
 Das JOSYN Application Protocol (JAP) definiert einen minimalen, rohen Datenaustausch:
 
-```
-JobHost                                    JAPServer
-   │── GetRawArguments() ──────────────►  │  (Job-Auftrag abholen)
-   │◄── result ─────────────────────────  │
-   │
-   │── PutRawResult(result) ──────────►  │  (Ergebnis zurückmelden)
-   │
-   │── PutError(serializedError) ──────►  │  (Fehler melden, falls Pipe noch lebt)
+```mermaid
+sequenceDiagram
+    participant Job as Job.exe (JobHost)
+    participant Server as JAPServer
+
+    Job->>Server: GetRawArguments()
+    Server-->>Job: serialisierte Argumente (INI/JSON)
+    Note over Job: [JobEntryPoint] ausführen
+    Job->>Server: PutRawResult(serialisiertes Ergebnis)
+
+    alt Fehlerfall
+        Job->>Server: PutError(serialisierter ErrorReport als JSON)
+    end
 ```
 
 Der Vertrag ist bewusst auf drei Methoden reduziert. Serialisierung und Deserialisierung
@@ -52,7 +57,8 @@ record ErrorReport(
     DateTimeOffset OccurredAt);
 ```
 
-Wird via `PropertyBag` (INI-Format) serialisiert, bevor er über `PutError` übertragen wird.
+Wird via `PropertyBag` als **JSON** serialisiert, bevor er über `PutError` übertragen wird
+(INI ist für mehrzeilige Felder wie `CallStack` und `ExceptionDetails` ungeeignet).
 Der Server protokolliert ihn; eine weitergehende Verarbeitung ist für spätere Ausbaustufen
 vorgesehen.
 

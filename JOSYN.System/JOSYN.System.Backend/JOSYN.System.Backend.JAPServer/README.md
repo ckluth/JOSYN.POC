@@ -1,70 +1,84 @@
-# JOSYN.System.Backend
+# JOSYN.System.Backend.JAPServer
 
-Part of the **JOSYN** (JobSystem Next) ecosystem.
+Part of the **JOSYN** (JobSystem Next) ecosystem — member of the `JOSYN.System.Backend`-Schicht.
 
-`JOSYN.System.Backend` is the **backend server executable**. It starts the JIP named-pipe
-server, receives JAP requests from job executables, dispatches them to the
-`IJosynApplicationProtocol` implementation, and manages the server lifecycle — all using
-the JOSYN Result pattern for error handling.
+`JOSYN.System.Backend.JAPServer` ist die **Backend-Server-Exe**. Sie startet den JIP-Named-Pipe-Server,
+nimmt JAP-Anfragen von Job-Executables entgegen, dispatcht sie an die
+`IJosynApplicationProtocol`-Implementierung und verwaltet den Server-Lifecycle — alles
+über das JOSYN-Result-Pattern.
 
-> **Note:** This is an executable, not a library. It is not distributed as a NuGet package.
+> **Hinweis:** Dies ist eine Executable, keine Bibliothek. Sie wird nicht als NuGet-Paket
+> verteilt.
 
 ---
 
-## Quick Start
+## Schnellstart
 
-Build and run. Pass the IPC session key as a command-line argument:
+Bauen und starten. Den IPC-Session-Key als Kommandozeilen-Argument übergeben:
 
 ```
 JOSYN.System.Backend.JAPServer.exe JOSYN-IPC <sessionKey>
 ```
 
-The session key must match the one passed to `PipesClient.ConnectAsync` on the job side.
+Der Session-Key muss mit dem übereinstimmen, der an `PipesClient.ConnectAsync` auf der
+Job-Seite übergeben wird. Beim Demo-Betrieb übernimmt `demo.cmd` das automatisch.
 
 ---
 
-## Architecture
+## Architektur
+
+```mermaid
+flowchart TD
+    A["Host.Run(args)"] --> B["PipesServer\nJIP Named-Pipe-Server\nsession-isoliert per GUID-Key"]
+    A --> C["JipDispatcher\nRegisterAll&lt;IJosynApplicationProtocol&gt;"]
+    C --> D["JAPServer\nIJosynApplicationProtocol-Implementierung\nGetRawArguments / PutRawResult / PutError"]
+```
+
+**Transport:** `JOSYN.Foundation.JIP` Named Pipes (session-isoliert per GUID-Key).
+**Anwendungsprotokoll:** `JOSYN.System.Shared.Contract.IJosynApplicationProtocol`.
+**Dispatch:** `JipDispatcher.RegisterAll<T>` — kein manuelles What-String-Wiring.
+
+---
+
+## Exit-Codes
+
+| Code | Bedeutung |
+|---|---|
+| `0` | Server erfolgreich terminiert |
+| `1` | Fataler Fehler (fehlender Session-Key, IPC-Fehler, unbehandelte Exception) |
+
+---
+
+## Abhängigkeiten
+
+| Paket | Rolle |
+|---|---|
+| `JOSYN.Foundation.ResultPattern` | Fehler-als-Wert-Pattern durchgängig |
+| `JOSYN.Foundation.JIP` | Named-Pipe-IPC-Transport + JIP-Konventions-Layer |
+| `JOSYN.System.Shared.Contract` | `IJosynApplicationProtocol`-Anwendungsprotokoll |
+| `JOSYN.System.Shared.Log` | `LocalLog` für Protokollierung |
+
+---
+
+## Für Maintainer
+
+### Bauen
 
 ```
-Server.exe
- └── Host.Run(args)
-      ├── PipesServer          — JIP named-pipe server (session-isolated via GUID key)
-      └── JipDispatcher
-           ├── RegisterAll<IJosynApplicationProtocol>   — maps JAP methods via reflection
-           └── JAPServer                                — IJosynApplicationProtocol impl
+.local-build\build.cmd          # Release-Build
+.local-build\build.cmd Debug    # Debug-Build
 ```
 
-**Transport**: `JOSYN.Foundation.JIP` named pipes (session-isolated via GUID key).  
-**Application protocol**: `JOSYN.System.Contract.IJosynApplicationProtocol`.  
-**Dispatch**: `JipDispatcher.RegisterAll<T>` — zero manual What-string wiring.
+*(Kein `pack.cmd` — dies ist eine Exe, kein NuGet-Paket.)*
 
----
+### Hinweise
 
-## Exit Codes
-
-| Code | Meaning |
-|---|---|
-| `0` | Server terminated successfully |
-| `1` | Fatal error (missing session key, IPC failure, unhandled exception) |
-
----
-
-## Dependencies
-
-| Package | Role |
-|---|---|
-| `JOSYN.Foundation.ResultPattern` | Error-as-value pattern throughout |
-| `JOSYN.Foundation.JIP` | Named-pipe IPC transport + JIP convention layer |
-| `JOSYN.System.Contract` | `IJosynApplicationProtocol` application protocol |
-
----
-
-## Maintainer Notes
-
-- **Session key via CLI**: the caller passes `"JOSYN-IPC <sessionKey>"` as arguments.
-- **Reconnect by default**: the server re-accepts connections after a client disconnects
-  until ESC is pressed.
-- **ESC cancellation**: pressing ESC at the console terminates the server after the current
-  connection closes.
-- **Error messages are in German** — project-wide convention.
-- **`de-DE` default culture** — affects number and date formatting in PropertyBag serialisation.
+- **Session-Key via CLI:** Der Aufrufer übergibt `"JOSYN-IPC <sessionKey>"` als Argumente.
+- **Reconnect standardmäßig:** Der Server akzeptiert nach einem Client-Disconnect erneut
+  Verbindungen — bis ESC gedrückt wird.
+- **ESC-Abbruch:** ESC an der Konsole beendet den Server nach dem Abschluss der aktuellen
+  Verbindung.
+- **`FakeReadArgumentsFromFile`** — hardcoded für den PoC-Scope; bewusst, kein Bug.
+- **Demo-Session-Key:** `dea5611d-d740-437f-ad93-7a5dc5ae4299` (hardcoded in `launchSettings.json`).
+- **Fehlermeldungen sind auf Deutsch** — projekt-weite Konvention.
+- **`de-DE` Default-Kultur** — betrifft Zahlen- und Datumsformatierung.

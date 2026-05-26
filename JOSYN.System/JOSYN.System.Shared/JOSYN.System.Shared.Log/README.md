@@ -12,12 +12,13 @@ JOSYN-EXE-Prozessen (`JobHost`, `JAPServer`) genutzt wird.
 Jeder JOSYN-EXE-Prozess schreibt sein eigenes Log in:
 
 ```
-%TEMP%\JOSYN\<ProcessName>\<yyyy-MM-dd>.log
+<ExeDir>\logs\<yyyy-MM-dd>.log
 ```
 
 Einträge werden **sofort auf Platte geflusht** (kein Puffer). Schreibfehler werden
 stillschweigend ignoriert — der Logger darf den Host-Prozess niemals zum Absturz bringen.
-Im **Debug-Build** wird zusätzlich auf die Konsole geschrieben.
+Mit gesetztem Flag `LocalLog.EnableConsoleOutput = true` wird zusätzlich auf die Konsole
+geschrieben (von `Core.cs` im JobHost und `Host.cs` im JAPServer standardmäßig aktiviert).
 
 ---
 

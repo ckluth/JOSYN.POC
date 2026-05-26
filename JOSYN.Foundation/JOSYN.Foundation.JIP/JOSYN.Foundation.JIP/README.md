@@ -114,10 +114,13 @@ Die obere Schicht definiert das JSON-basierte Anfrage/Antwort-Format:
 
 ### Zwei-Pipe-Design
 
-```
-Client                              Server
-  │── req-pipe-<sessionKey> ──────►  │
-  │◄── res-pipe-<sessionKey> ────────│
+```mermaid
+sequenceDiagram
+    participant C as Client (JobHost)
+    participant S as Server (JAPServer)
+
+    C->>S: req-pipe-&lt;sessionKey&gt; (Request)
+    S-->>C: res-pipe-&lt;sessionKey&gt; (Response)
 ```
 
 Jede Session verwendet genau zwei Pipes — eine für Anfragen, eine für Antworten.
@@ -132,9 +135,7 @@ Diese Punkte sind bewusst akzeptiert und dokumentiert — kein Handlungsbedarf i
 
 | Einschränkung | Beschreibung |
 |---|---|
-| Single-in-Flight | Kein Multiplexing; Anfragen werden strikt sequenziell verarbeitet |
-| Synchroner Handler | `Func<string, Task<string>>` — intern async, aber kein direktes `async`-Interface |
-| `ClientPipes`/`ServerPipes` als `record` | Semantisch sollten es `sealed class` sein |
+| Single-in-Flight | Kein Multiplexing; Anfragen werden strikt sequenziell verarbeitet — kein Request-ID-Konzept |
 
 ---
 
