@@ -10,16 +10,26 @@ Purpose: architecture reference design, collaboration and discussion ground, sol
 
 ```
 JOSYN.POC/
+├── .github/                             ← agent layer (persona, stories, artifacts)
+├── .local-build/                        ← root orchestration scripts (build-all, test-all, demo)
+├── docs/                                ← High-Level-Architecture.pptx
+├── Local Packages/                      ← local NuGet feed (all packed libs output here)
 ├── JOSYN.Foundation/
-│   ├── JOSYN.Foundation.ResultPattern/   ← foundation; referenced by everything
-│   ├── JOSYN.Foundation.PropertyBag/     ← record serializer; depends on ResultPattern
-│   └── JOSYN.Foundation.JIP/             ← named-pipe IPC; depends on ResultPattern
-├── JOSYN.System/
-│   ├── JOSYN.System.Frontend/            ← job host / job invoker
-│   ├── JOSYN.System.Backend/             ← JAP server
-│   └── JOSYN.System.Shared/              ← shared contracts, logging
-└── .local-build/                         ← root-level build scripts
+│   ├── JOSYN.Foundation.ResultPattern/  ← foundation; referenced by everything  [NuGet 1.0.0-preview01]
+│   ├── JOSYN.Foundation.PropertyBag/    ← record serializer; depends on ResultPattern  [NuGet 1.0.0-preview01]
+│   └── JOSYN.Foundation.JIP/            ← named-pipe IPC; depends on ResultPattern  [NuGet 1.0.0-preview01]
+└── JOSYN.System/
+    ├── JOSYN.System.Frontend/           ← namespace grouping layer (no code)
+    │   ├── JOSYN.System.Frontend.JobHost/  ← job developer library  [NuGet 1.0.0-preview01]
+    │   └── JOSYN.MyDemoJob/             ← demo exe (not packed)
+    ├── JOSYN.System.Backend/            ← namespace grouping layer (no code)
+    │   └── JOSYN.System.Backend.JAPServer/ ← backend exe (not packed)
+    └── JOSYN.System.Shared/             ← namespace grouping layer (no code)
+        ├── JOSYN.System.Shared.Contract/ ← JAP protocol contract  [NuGet 1.0.0-preview01]
+        └── JOSYN.System.Shared.Log/     ← LocalLog  [NuGet 1.0.0-preview01]
 ```
+
+**Grouping layers** (`JOSYN.System.Frontend/`, `JOSYN.System.Backend/`, `JOSYN.System.Shared/`) are pure namespace containers — no code, just `.slnx` + scaffold. Concrete projects live one level deeper with fully-qualified names.
 
 Each logical repo under `JOSYN.Foundation/` is self-contained with its own `.slnx` solution, `nuget.config`, and a `.local-build\` scripts folder.
 
@@ -39,6 +49,26 @@ Each logical repo contains a `.local-build\` folder with the following scripts. 
 Build outputs go to `C:\Temp\VS.OUT\JOSYN\<ProjectName>\` (set in `Directory.Build.props`).  
 **Test framework:** NUnit 4.x — `[TestFixture]` / `[Test]`.  
 **Solution format:** `.slnx` (not `.sln`).
+
+**Root `.local-build\` scripts (orchestration across all logical repos):**
+
+| Script | Purpose |
+|--------|---------|
+| `build-all.cmd` | Crystal-clean: clear nupkg + NuGet cache → build+pack all in dependency order |
+| `test-all.cmd` | `dotnet test` all solutions |
+| `all.cmd` | `build-all.cmd` + `test-all.cmd` |
+| `demo.cmd` | Launch JAPServer + MyDemoJob [Release] in separate console windows |
+| `demo.debug.cmd` | Build Debug + launch both |
+
+**NuGet dependency order** (critical — pack before referencing downstream):
+```
+1. JOSYN.Foundation.ResultPattern  → pack
+2. JOSYN.Foundation.PropertyBag    → pack  (depends on 1)
+3. JOSYN.Foundation.JIP            → pack  (depends on 1)
+4. JOSYN.System.Shared             → pack Contract + Log  (depends on 1)
+5. JOSYN.System.Frontend.JobHost   → pack  (depends on 1,2,3,4)
+6. JOSYN.System.Backend.JAPServer  → build only — exe  (depends on 1,3,4)
+```
 
 ## The Result Pattern — used everywhere
 
@@ -82,8 +112,12 @@ var result = PropertyBag.Deserialize<MyRecord>(rawString);  // format auto-detec
 ```
 
 - Default culture is **`de-DE`** — affects number/date formatting.
-- Only types listed in `SupportedPropertyTypes.cs` are valid record property types.
+- Culture setup is the **host process's responsibility** — the library does NOT set `DefaultThreadCurrentCulture`.
+- `JosynCulture.Default` = `de-DE` is a compile-time constant; do not make it runtime-configurable.
+- Only types listed in `SupportedPropertyTypes.cs` are valid record property types. `DateTimeOffset` is supported.
+- Both record styles work: **init-property style** AND **primary-constructor (positional) style**.
 - Property name matching is case-insensitive on the first character when deserializing parameters.
+- INI format is whitespace-exact — no trimming; leading spaces are captured as-is.
 
 ## JIP (Named Pipes)
 
@@ -113,10 +147,92 @@ var dispatcher = new JipDispatcher()
 
 The `IsCancellationRequested: Func<Task<bool>>?` parameter is converted internally to a polling `CancellationToken`. Callers pass a simple async predicate; no `CancellationToken` management required.
 
-**Known PoC limitations** (see `.github\stories\ipc\session-0003-poc-assessment-conclusion.md` in JOSYN for full analysis):
+**Known PoC limitations:**
 - Protocol is single-in-flight (strictly sequential, no request IDs).
 
 **Note:** Async handlers (`Func<string, Task<string>>` / `Func<byte[], Task<byte[]>>`), `sealed class` for `ClientPipes`/`ServerPipes`, and JipDispatcher are all fully in place.
+
+## System Building Blocks
+
+### `JOSYN.System.Shared.Contract`
+
+Transport-agnostic JAP protocol contract. Shared by Frontend and Backend. Depends on ResultPattern only (NOT JIP).
+
+```csharp
+public interface IJosynApplicationProtocol {
+    Task<Result<string>> GetRawArguments();
+    Task<Result>         PutRawResult(string rawResult);
+    Task<Result>         PutError(string serializedErrorReport);
+}
+
+record ErrorReport(string Message, string? CallStack, string? ExceptionDetails, DateTimeOffset OccurredAt);
+```
+
+`ErrorReport` is serialized as **JSON** via PropertyBag when passed to `PutError` — INI was insufficient for multi-line `CallStack`/`ExceptionDetails`.
+
+---
+
+### `JOSYN.System.Shared.Log`
+
+`LocalLog` — process-local file logger. Static. Never throws. Flush-on-write.
+
+- **Log path: `<ExeDir>\logs\`** — the `%TEMP%`-based path is obsolete, ignore it.
+- `LogDirectory` is a settable `public static string` — used as test seam.
+- `EnableConsoleOutput` flag mirrors output to Console.
+- Causer overloads write to `Path.Combine(LogDirectory, causer)` subfolder.
+- `FormatEntry` is `internal` (promoted for testability).
+- `[NonParallelizable]` required in tests — `LogDirectory` and `EnableConsoleOutput` are shared static state.
+- ⚠️ `LocalLog.Error(string, string)` is ambiguous between `Error(message, callStack)` and `Error(causer, message)` — **always use named parameters**.
+
+---
+
+### `JOSYN.System.Frontend.JobHost`
+
+The job developer's library. Job author references this, marks one method `[JobEntryPoint]`, calls `Core.Run(args)` from `Program.cs` — the library handles everything else.
+
+**Job dispatch flow:**
+```
+Core.Run(args)
+  ├── JAPClient.CreateConnectedClient(args)   parse sessionKey + JIP connect
+  └── JobInvoker.InvokeJob(japClient)
+       ├── FindJobFunction(IEnumerable<Type>)  [JobEntryPoint] via reflection
+       ├── CreateInvocationArguments           GetRawArguments() → PropertyBag.Deserialize
+       ├── [User's job method]                 pure business logic
+       └── ProcessJobResult                    PropertyBag.Serialize → PutRawResult()
+```
+
+**Error routing:**
+
+| Failure point | Action | Exit code |
+|---|---|---|
+| Pipe connection failed | LocalLog.Error only | -1 |
+| Job error, pipe alive | LocalLog.Error + PutError to server | -2 |
+| PutError itself fails | LocalLog.Error (fallback) | -2 |
+
+**Key notes:**
+- `JAPClient` is `internal` — implements `IJosynApplicationProtocol` via JIP transport.
+- CLI args format: `"JOSYN-IPC <sessionKey>"` (server passes this when launching the job exe).
+- Reflection in `JobInvoker` is **intentional design** — the job-author extension point; do not flag it.
+- `internal InvokeJob(IJosynApplicationProtocol, IEnumerable<Type>)` overload exists for testing — supplies types directly, bypasses assembly scanning.
+- `ArgumentsComparer<T>` — internal delegate, **deliberate placeholder** for a future conditional parallel execution feature. Do not remove.
+
+---
+
+### `JOSYN.System.Backend.JAPServer` (exe — not packed)
+
+Backend process. Connects the two sides: listens on named pipe, launches the job exe, handles the three JAP calls, shuts down cleanly.
+
+- `Program.cs` → `Host.Run(args)` (one line).
+- `Host.cs` — server lifecycle, ESC-key shutdown (`WasEscapePressed`), graceful drain, all logging via LocalLog.
+- `JAPServer.cs` — `IJosynApplicationProtocol` implementation (3 methods).
+- `FakeReadArgumentsFromFile` — hardcoded for PoC scope; **intentional, not a bug**.
+- **Demo session key** (hardcoded in `launchSettings.json` of both exe projects): `dea5611d-d740-437f-ad93-7a5dc5ae4299`
+
+---
+
+### `JOSYN.MyDemoJob` (exe — not packed)
+
+Demo job exe. One method marked `[JobEntryPoint]`. `Program.cs` is one line: `Core.Run(args)`.
 
 ## Key Conventions
 
@@ -194,5 +310,6 @@ The `IsCancellationRequested: Func<Task<bool>>?` parameter is converted internal
           conclusion.md                       ← optional, only if requested
   ```
 
+- **`docs/architecture-reference.md` is a central living document** — keep it up-to-date whenever any session makes changes that affect the system's structure, building blocks, dependencies, conventions, or build system. Updating it is not optional; it is part of completing any such change.
 - **Session save trigger** — whenever the user says *"save this session"*, *"write a summary"*, *"log this"*, or similar: always propose a filename following the pattern above and ask for confirmation before writing. Example: *"Shall I save this as `.github\stories\result-pattern\session-0001-make-or-buy-summary.md`?"*
   - **Story Method reference** — the complete human-readable description is at `.github\.artifacts\story-method.md`

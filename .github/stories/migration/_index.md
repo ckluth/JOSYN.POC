@@ -25,6 +25,10 @@
 - **Single-in-flight IPC limitation** — not fixed; documented as known limitation for PoC v2
 - **README in JOSYN.POC: showcase quality** — architecture overview, layer diagram, building-block descriptions for colleague-readers — Phase 3 task
 
+- **`LocalLog` path is `<ExeDir>\logs\`** — `%TEMP%\JOSYN\<ProcessName>\<date>.log` is obsolete; ignore it.
+- **`ArgumentsComparer<T>`** — deliberate placeholder for future conditional parallel execution; do not remove.
+- **`v0.1.0-poc` git tag** — applied to JOSYN ✅
+- **`docs/architecture-reference.md`** — human-readable system overview; starting point for showcase README session.
 - **"Never look back" rule** — AI in JOSYN.POC never reads JOSYN files and never queries JOSYN-era session history; gaps are fixed in JOSYN.POC, not filled by looking back
 - **Human bridge protocol** — user may provide missing context verbally, once; it is immediately written into JOSYN.POC and closed
 - **JOSYN migration story is still open** — "never look back" rule in force; migration continues to finalization in JOSYN.POC
@@ -33,10 +37,7 @@
 
 ## Open Questions
 
-- **LocalLog path:** Ariadne v5 says `%TEMP%\JOSYN\<ProcessName>\<date>.log`; Key Decisions say `<ExeDir>\logs\` — contradictory; needs human clarification
-- **`ArgumentsComparer`:** Internal delegate type in JobHost — purpose unclear; possibly unused placeholder
-- **`v0.1.0-poc` git tag:** Was this ever applied to JOSYN, or still pending?
-- **Next task:** Showcase README still top of queue, or something else?
+*None — all questions resolved as of session-0006.*
 
 ## Sessions
 
@@ -46,4 +47,5 @@
 | 0002 | session-0002-substance-migration-generation.md | Pre-migration audit (confirmed fixes already in place) + substance migration; 161/161 tests ✅ |
 | 0003 | session-0003-agent-layer-migration-generation.md | Agent layer: persona, artifacts, unit-test instructions copied; copilot-instructions.md rebuilt; migration story seeded in JOSYN.POC ✅ |
 | 0004 | session-0004-switchover-discussion.md | "Never look back" rule established; safe switch moment confirmed; JOSYN story closed 🔒 |
-| 0005 | session-0005-transition-bridge-summary.md | Status-quo bridge document: all building blocks, dependencies, conventions, open items — awaiting human review before transfer into copilot-instructions.md |
+| 0005 | session-0005-transition-bridge-summary.md | Status-quo bridge document: all building blocks, dependencies, conventions, open items — reviewed and resolved in session-0006 |
+| 0006 | session-0006-bridge-resolution-summary.md | All 4 bridge questions resolved; copilot-instructions enriched; architecture-reference.md created ✅ |
