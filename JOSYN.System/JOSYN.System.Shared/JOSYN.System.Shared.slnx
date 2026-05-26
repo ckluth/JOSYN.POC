@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="JOSYN.System.Shared.Contract/JOSYN.System.Shared.Contract.csproj" />
+  <Project Path="JOSYN.System.Shared.Log/JOSYN.System.Shared.Log.csproj" />
+  <Project Path="JOSYN.System.Shared.Log.Test/JOSYN.System.Shared.Log.Test.csproj" />
+</Solution>
